@@ -144,6 +144,11 @@ glancecode service restart
 codex remote-control start      # optional: use sessions from the ChatGPT app too
 ```
 
+Remote control needs multi-factor authentication on your ChatGPT account. Without
+it, `codex remote-control start` reports that "the connection is errored". Turn it
+on in ChatGPT's security settings, then sign Codex in again with
+`codex logout && codex login`.
+
 Then start sessions through that server so the glasses can join them:
 
 ```bash
