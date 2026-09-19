@@ -90,7 +90,10 @@ const commands = {
       if (!codexBin) info("Codex not installed (optional: npm install -g @openai/codex)");
       else {
         ok(`Codex ${codexVersion(codexBin) || ""} at ${codexBin}`.replace("  ", " "));
-        existsSync(CODEX_SOCKET) ? ok("Codex server socket present") : warn(`Codex server not running yet; the hub starts it (${CLI} service restart)`);
+        const { codexDaemonSocket } = await import(join(ROOT, "hub", "codex.mjs"));
+        if (existsSync(codexDaemonSocket())) ok("using Codex's shared server, so the ChatGPT app's remote can share sessions");
+        else if (existsSync(CODEX_SOCKET)) warn("using the hub's own Codex server; install Codex's standalone build to share sessions with the ChatGPT app: curl -fsSL https://chatgpt.com/codex/install.sh | sh");
+        else warn(`Codex server not running yet; the hub starts it (${CLI} service restart)`);
         info(`Start Codex sessions with \`${CLI} codex\` so the glasses can see them`);
       }
     }
@@ -162,19 +165,20 @@ const commands = {
 
   async codex() {
     const cfg = loadConfig();
-    const { CODEX_SERVER_NAME, ensureCodexServer, findCodex, remoteArgs } = await import(join(ROOT, "hub", "codex.mjs"));
+    const { CODEX_SERVER_NAME, resolveCodexServer, findCodex, remoteArgs } = await import(join(ROOT, "hub", "codex.mjs"));
     const bin = findCodex(cfg.codexBin, { exclude: [ROOT] });
     if (!bin) {
       console.error("codex not found on PATH. Install it with: npm install -g @openai/codex");
       process.exit(1);
     }
+    let socket;
     try {
-      await ensureCodexServer({ bin, socket: CODEX_SOCKET });
+      ({ socket } = await resolveCodexServer({ bin, ownSocket: CODEX_SOCKET }));
     } catch (err) {
       console.error(`${err.message}\nSee the server output with: tmux ${serverArgs(null).join(" ")} attach -t ${CODEX_SERVER_NAME}`);
       process.exit(1);
     }
-    const args = remoteArgs(CODEX_SOCKET, rest, process.cwd());
+    const args = remoteArgs(socket, rest, process.cwd());
     if (process.env.TMUX) {
       const r = spawnSync(bin, args, { stdio: "inherit" });
       process.exit(r.status ?? 0);

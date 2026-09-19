@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1
+
+- Codex: the hub joins Codex's own shared server when Codex's standalone build is
+  installed, so the ChatGPT app's remote, the terminal and the glasses can all use
+  the same session. Before, the hub ran a separate server and the two collided.
+  `glancecode doctor` says which server is in use.
+
 ## 0.6.0 (glasses app 0.3.1)
 
 - Gemini CLI support. `glancecode install` adds the hook to Gemini CLI's settings,

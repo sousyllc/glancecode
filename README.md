@@ -41,7 +41,14 @@ terminal and the terminal shows whatever the glasses do as it happens.
 
 ```
 codex (terminal) ──▶ Codex app server ◀── hub ◀── tailscale serve ◀── Even app ◀── G2
+                             ▲
+     ChatGPT app (remote) ───┘
 ```
+
+When Codex's standalone build is installed, the hub joins the same shared server
+that Codex's own remote control uses, so the ChatGPT app on your phone, the
+terminal and the glasses all work in one session together. Without it, the hub
+runs a server of its own, which the ChatGPT remote can't share.
 
 ## What you get on the glasses
 
@@ -128,8 +135,16 @@ alias gemini='glancecode gemini'   # optional
 If you install Gemini CLI after running setup, run `glancecode install` once so it
 gets the hook.
 
-For Codex, start sessions through the hub's Codex server so the glasses can join
-them:
+For Codex, install Codex's standalone build first. It gives Codex a shared server
+that the terminal, the ChatGPT app's remote and the glasses can all join:
+
+```bash
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
+glancecode service restart
+codex remote-control start      # optional: use sessions from the ChatGPT app too
+```
+
+Then start sessions through that server so the glasses can join them:
 
 ```bash
 glancecode codex           # takes the same arguments as codex, including resume
@@ -138,7 +153,8 @@ alias codex='glancecode codex'     # optional, in your shell rc
 
 Plain `codex`, the Codex IDE extension and the Codex desktop app each run a
 private server that other programs can't join, so their sessions don't show up
-live. Past sessions from all of them do appear under Resume on the glasses.
+live. The npm build of Codex works too, but without the shared server the ChatGPT
+remote and the glasses can't be in the same session. Past sessions from all of them do appear under Resume on the glasses.
 
 ## Using it
 

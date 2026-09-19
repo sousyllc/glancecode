@@ -9,12 +9,20 @@ import { spawnSync } from "node:child_process";
 import { EventEmitter } from "node:events";
 import { accessSync, constants, existsSync, realpathSync, rmSync } from "node:fs";
 import { createConnection } from "node:net";
+import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { Session } from "./sessions.mjs";
 import * as tmuxCtl from "./tmux.mjs";
 import { WsClient } from "./wsclient.mjs";
 
-export const CODEX_SERVER_NAME = "_glancecode-codex"; // tmux session holding the app-server
+export const CODEX_SERVER_NAME = "_glancecode-codex"; // tmux session holding our own app-server
+
+// Codex's own shared server: the one `codex remote-control` runs for the ChatGPT app,
+// managed by Codex's standalone install. When it's available the hub joins it, so the
+// phone, the terminal and the glasses are clients of one server.
+const CODEX_HOME = () => process.env.CODEX_HOME || join(homedir(), ".codex");
+export const codexDaemonSocket = () => join(CODEX_HOME(), "app-server-control", "app-server-control.sock");
+const managedCodex = () => join(CODEX_HOME(), "packages", "standalone", "current", "bin", "codex");
 const HISTORY_TURNS = 25;
 const REQUEST_TIMEOUT_MS = 30_000;
 // Let go of idle sessions this long untouched (overridable for tests).
@@ -279,7 +287,28 @@ export async function ensureCodexServer({ bin, socket }) {
 }
 
 /**
- * Arguments that attach the Codex terminal UI to our server. `resume` and `fork` take
+ * Which server to use: Codex's shared one when it runs or can be started through its
+ * standalone install, otherwise our own in tmux.
+ * @returns {Promise<{socket: string, shared: boolean, started: boolean}>}
+ */
+export async function resolveCodexServer({ bin, ownSocket }) {
+  const daemon = codexDaemonSocket();
+  if (await socketAlive(daemon)) return { socket: daemon, shared: true, started: false };
+  if (existsSync(managedCodex())) {
+    // Codex manages this server's lifetime and updates; starting it twice is harmless.
+    spawnSync(managedCodex(), ["app-server", "daemon", "start"], { stdio: "ignore", timeout: 30_000 });
+    const until = Date.now() + 10_000;
+    while (Date.now() < until) {
+      if (await socketAlive(daemon)) return { socket: daemon, shared: true, started: true };
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+  const { started } = await ensureCodexServer({ bin, socket: ownSocket });
+  return { socket: ownSocket, shared: false, started };
+}
+
+/**
+ * Arguments that attach the Codex terminal UI to its server. `resume` and `fork` take
  * their own flag. A remote session otherwise works in the server's folder, so the
  * caller's folder goes along unless the arguments already name one.
  */
@@ -300,7 +329,9 @@ export class CodexBridge extends EventEmitter {
     super();
     this.registry = registry;
     this.bin = bin;
+    this.ownSocket = socket;
     this.socket = socket;
+    this.shared = false;
     this.log = log;
     this.clientVersion = clientVersion;
     this.ws = null;
@@ -320,8 +351,11 @@ export class CodexBridge extends EventEmitter {
   async start() {
     this.stopped = false;
     try {
-      const { started } = await ensureCodexServer({ bin: this.bin, socket: this.socket });
-      if (started) this.log(`codex: app-server started on ${this.socket}`);
+      const server = await resolveCodexServer({ bin: this.bin, ownSocket: this.ownSocket });
+      if (server.socket !== this.socket || server.started || !this.announced) this.log(`codex: using ${server.shared ? "Codex's shared server" : "the hub's own Codex server"} (${server.socket})`);
+      this.announced = true;
+      this.socket = server.socket;
+      this.shared = server.shared;
     } catch (err) {
       this.log(`codex: ${err.message}`);
       return this.retryLater();
