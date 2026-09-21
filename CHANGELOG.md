@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2
+
+- Codex: resuming a session the hub can't open now says why, and what to do, rather
+  than "couldn't open that Codex session". Sessions owned by another Codex server
+  (the ChatGPT app's, an IDE's) or living in Codex Cloud can't be opened locally.
+
 ## 0.6.1
 
 - Codex: the hub joins Codex's own shared server when Codex's standalone build is

@@ -544,6 +544,7 @@ export class CodexBridge extends EventEmitter {
       await this.loadHistory(s).catch((err) => this.log(`codex: history for ${s.project}: ${err.message}`));
       return s;
     } catch (err) {
+      j.lastError = err.message;
       if (!/no rollout found/i.test(err.message)) this.log(`codex: join ${threadId.slice(0, 8)}: ${err.message}`);
       return null;
     } finally {
@@ -857,7 +858,13 @@ export class CodexBridge extends EventEmitter {
   async resumeSession({ id }) {
     if (!this.ready) throw Object.assign(new Error("Codex isn't connected right now"), { status: 503 });
     const s = await this.join(id, { force: true });
-    if (!s) throw Object.assign(new Error("couldn't open that Codex session"), { status: 502 });
+    if (!s) {
+      const why = this.joining.get(id)?.lastError || "";
+      // A session another Codex server owns (the ChatGPT app's, or an IDE's) can't be
+      // opened from here, and one that never ran on this computer has nothing to resume.
+      const hint = this.shared ? "It may belong to Codex Cloud or another computer." : "Install Codex's standalone build so this hub and the ChatGPT app share one Codex server: curl -fsSL https://chatgpt.com/codex/install.sh | sh";
+      throw Object.assign(new Error(`Couldn't open that Codex session. ${hint}${why ? ` (${clip(why, 80)})` : ""}`), { status: 502 });
+    }
     s.origin = "glasses";
     await this.openTerminal(s).catch((err) => this.log(`codex: terminal for ${s.project}: ${err.message}`));
     return s;

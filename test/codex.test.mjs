@@ -104,6 +104,18 @@ test("an approval answered elsewhere clears the glasses", () => {
   assert.equal(s.state, "working");
 });
 
+test("a session another Codex server owns explains why it can't be opened", async () => {
+  const registry = Object.assign(new EventEmitter(), { sessions: new Map(), changed() {} });
+  const bridge = new codex.CodexBridge({ registry, bin: "codex", socket: "/tmp/none.sock" });
+  bridge.ready = true;
+  bridge.call = async () => {
+    throw new Error("no rollout found for thread id abc");
+  };
+  await assert.rejects(() => bridge.resumeSession({ id: "abc" }), /standalone build.*no rollout found/s);
+  bridge.shared = true;
+  await assert.rejects(() => bridge.resumeSession({ id: "abc" }), /Codex Cloud or another computer/);
+});
+
 test("helper threads are hidden and remote arguments carry the folder", () => {
   assert.equal(codex.isHelperThread({ ephemeral: true }), true);
   assert.equal(codex.isHelperThread({ ephemeral: false, source: { subAgent: {} } }), true);

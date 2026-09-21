@@ -1,6 +1,6 @@
 {
   "name": "@sousy/glancecode",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Drive your Claude Code sessions from Even Realities G2 smart glasses: live transcript, approvals, and hold-to-talk voice, running on your own machine.",
   "type": "module",
   "bin": {
